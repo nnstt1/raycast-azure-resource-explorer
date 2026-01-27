@@ -262,7 +262,7 @@ export default function Command() {
                         title="お気に入りから削除"
                         icon={Icon.StarDisabled}
                         style={Action.Style.Destructive}
-                        shortcut={{ modifiers: ["cmd"], key: "d" }}
+                        shortcut={{ modifiers: ["cmd"], key: "s" }}
                         onAction={() => handleRemoveFromFavorites(resource.id)}
                       />
                     </ActionPanel.Section>
@@ -490,7 +490,7 @@ export default function Command() {
                       <Action
                         title="お気に入りから削除"
                         icon={Icon.StarDisabled}
-                        shortcut={{ modifiers: ["cmd"], key: "d" }}
+                        shortcut={{ modifiers: ["cmd"], key: "s" }}
                         onAction={() => handleRemoveFromFavorites(res.id)}
                       />
                     ) : (
