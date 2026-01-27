@@ -6,8 +6,10 @@ import {
   Toast,
   Icon,
   Color,
+  confirmAlert,
+  Alert,
 } from "@raycast/api";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { AzureSubscription, AzureResource } from "./types";
 import {
   checkAzureCli,
@@ -15,6 +17,14 @@ import {
   getResources,
   getPortalUrl,
 } from "./utils/azure";
+import {
+  getHistory,
+  addToHistory,
+  clearHistory,
+  HistoryItem,
+} from "./utils/history";
+
+const ALL_FILTER = "all";
 
 export default function Command() {
   const [cliStatus, setCliStatus] = useState<{
@@ -27,6 +37,14 @@ export default function Command() {
   const [resources, setResources] = useState<AzureResource[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [typeFilter, setTypeFilter] = useState<string>(ALL_FILTER);
+  const [locationFilter, setLocationFilter] = useState<string>(ALL_FILTER);
+
+  // Load history on mount
+  useEffect(() => {
+    getHistory().then(setHistory);
+  }, []);
 
   useEffect(() => {
     const status = checkAzureCli();
@@ -56,10 +74,12 @@ export default function Command() {
       const subs = getSubscriptions();
       setSubscriptions(subs);
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       showToast({
         style: Toast.Style.Failure,
         title: "サブスクリプションの取得に失敗しました",
-        message: String(error),
+        message: errorMessage,
       });
     }
     setIsLoading(false);
@@ -68,6 +88,8 @@ export default function Command() {
   useEffect(() => {
     if (!selectedSubscription) {
       setResources([]);
+      setTypeFilter(ALL_FILTER);
+      setLocationFilter(ALL_FILTER);
       return;
     }
 
@@ -79,14 +101,55 @@ export default function Command() {
       );
       setResources(res);
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       showToast({
         style: Toast.Style.Failure,
         title: "リソースの取得に失敗しました",
-        message: String(error),
+        message: errorMessage,
       });
+      setResources([]);
     }
     setIsLoading(false);
   }, [selectedSubscription]);
+
+  // Extract unique resource types and locations
+  const resourceTypes = useMemo(() => {
+    const types = new Set(resources.map((r) => r.type));
+    return Array.from(types).sort();
+  }, [resources]);
+
+  const locations = useMemo(() => {
+    const locs = new Set(resources.map((r) => r.location));
+    return Array.from(locs).sort();
+  }, [resources]);
+
+  // Handle opening resource in portal with history
+  const handleOpenInPortal = useCallback(async (resource: AzureResource) => {
+    await addToHistory(resource);
+    const updatedHistory = await getHistory();
+    setHistory(updatedHistory);
+  }, []);
+
+  // Handle clearing history
+  const handleClearHistory = useCallback(async () => {
+    const confirmed = await confirmAlert({
+      title: "履歴をクリア",
+      message: "すべての履歴を削除しますか？",
+      primaryAction: {
+        title: "削除",
+        style: Alert.ActionStyle.Destructive,
+      },
+    });
+    if (confirmed) {
+      await clearHistory();
+      setHistory([]);
+      showToast({
+        style: Toast.Style.Success,
+        title: "履歴をクリアしました",
+      });
+    }
+  }, []);
 
   if (cliStatus && !cliStatus.installed) {
     return (
@@ -118,6 +181,56 @@ export default function Command() {
         isLoading={isLoading}
         searchBarPlaceholder="サブスクリプションを検索..."
       >
+        {history.length > 0 && (
+          <List.Section title="最近アクセスしたリソース">
+            {history.slice(0, 5).map((item) => (
+              <List.Item
+                key={`history-${item.resource.id}`}
+                title={item.resource.name}
+                subtitle={item.resource.subscriptionName}
+                icon={{ source: Icon.Clock, tintColor: Color.SecondaryText }}
+                accessories={[
+                  { tag: item.resource.location },
+                  { text: item.resource.type.split("/").pop() },
+                ]}
+                actions={
+                  <ActionPanel>
+                    <ActionPanel.Section>
+                      <Action.OpenInBrowser
+                        title="Azure Portal で開く"
+                        url={getPortalUrl(item.resource.id)}
+                        icon={Icon.Globe}
+                        onOpen={() => handleOpenInPortal(item.resource)}
+                      />
+                      <Action.CopyToClipboard
+                        title="リソース ID をコピー"
+                        content={item.resource.id}
+                        shortcut={{ modifiers: ["cmd"], key: "c" }}
+                      />
+                      <Action.CopyToClipboard
+                        title="リソース名をコピー"
+                        content={item.resource.name}
+                        shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+                      />
+                    </ActionPanel.Section>
+                    <ActionPanel.Section>
+                      <Action
+                        title="履歴をクリア"
+                        icon={Icon.Trash}
+                        style={Action.Style.Destructive}
+                        shortcut={{
+                          modifiers: ["cmd", "shift"],
+                          key: "delete",
+                        }}
+                        onAction={handleClearHistory}
+                      />
+                    </ActionPanel.Section>
+                  </ActionPanel>
+                }
+              />
+            ))}
+          </List.Section>
+        )}
         <List.Section title="サブスクリプション">
           {subscriptions.map((sub) => (
             <List.Item
@@ -152,12 +265,17 @@ export default function Command() {
 
   const filteredResources = resources.filter((res) => {
     const search = searchText.toLowerCase();
-    return (
+    const matchesSearch =
       res.name.toLowerCase().includes(search) ||
       res.resourceGroup.toLowerCase().includes(search) ||
       res.type.toLowerCase().includes(search) ||
-      res.location.toLowerCase().includes(search)
-    );
+      res.location.toLowerCase().includes(search);
+
+    const matchesType = typeFilter === ALL_FILTER || res.type === typeFilter;
+    const matchesLocation =
+      locationFilter === ALL_FILTER || res.location === locationFilter;
+
+    return matchesSearch && matchesType && matchesLocation;
   });
 
   return (
@@ -166,6 +284,45 @@ export default function Command() {
       searchBarPlaceholder="リソースを検索..."
       onSearchTextChange={setSearchText}
       navigationTitle={selectedSubscription.name}
+      searchBarAccessory={
+        <List.Dropdown
+          tooltip="フィルター"
+          onChange={(value) => {
+            if (value.startsWith("type:")) {
+              setTypeFilter(value.replace("type:", ""));
+            } else if (value.startsWith("location:")) {
+              setLocationFilter(value.replace("location:", ""));
+            }
+          }}
+        >
+          <List.Dropdown.Section title="リソースタイプ">
+            <List.Dropdown.Item
+              title="すべてのタイプ"
+              value={`type:${ALL_FILTER}`}
+            />
+            {resourceTypes.map((type) => (
+              <List.Dropdown.Item
+                key={type}
+                title={type.split("/").pop() || type}
+                value={`type:${type}`}
+              />
+            ))}
+          </List.Dropdown.Section>
+          <List.Dropdown.Section title="ロケーション">
+            <List.Dropdown.Item
+              title="すべてのロケーション"
+              value={`location:${ALL_FILTER}`}
+            />
+            {locations.map((loc) => (
+              <List.Dropdown.Item
+                key={loc}
+                title={loc}
+                value={`location:${loc}`}
+              />
+            ))}
+          </List.Dropdown.Section>
+        </List.Dropdown>
+      }
     >
       <List.Section title={`リソース (${filteredResources.length})`}>
         {filteredResources.map((res) => (
@@ -185,6 +342,7 @@ export default function Command() {
                     title="Azure Portal で開く"
                     url={getPortalUrl(res.id)}
                     icon={Icon.Globe}
+                    onOpen={() => handleOpenInPortal(res)}
                   />
                   <Action.CopyToClipboard
                     title="リソース ID をコピー"
