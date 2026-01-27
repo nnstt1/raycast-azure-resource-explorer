@@ -13,6 +13,7 @@ export interface AzureResource {
   location: string;
   subscriptionId: string;
   subscriptionName?: string;
+  tags?: Record<string, string>;
 }
 
 export interface AzureResourceRaw {
@@ -21,4 +22,5 @@ export interface AzureResourceRaw {
   type: string;
   resourceGroup: string;
   location: string;
+  tags?: Record<string, string>;
 }

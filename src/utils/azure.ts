@@ -74,6 +74,7 @@ export function getResources(
     location: res.location,
     subscriptionId: subscriptionId,
     subscriptionName: subscriptionName,
+    tags: res.tags,
   }));
 }
 

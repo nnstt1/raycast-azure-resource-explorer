@@ -23,8 +23,20 @@ import {
   clearHistory,
   HistoryItem,
 } from "./utils/history";
+import {
+  getFavorites,
+  addToFavorites,
+  removeFromFavorites,
+} from "./utils/favorites";
 
 const ALL_FILTER = "all";
+
+function formatTags(tags?: Record<string, string>): string {
+  if (!tags || Object.keys(tags).length === 0) return "";
+  return Object.entries(tags)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(", ");
+}
 
 export default function Command() {
   const [cliStatus, setCliStatus] = useState<{
@@ -38,12 +50,14 @@ export default function Command() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [favorites, setFavorites] = useState<AzureResource[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>(ALL_FILTER);
   const [locationFilter, setLocationFilter] = useState<string>(ALL_FILTER);
 
-  // Load history on mount
+  // Load history and favorites on mount
   useEffect(() => {
     getHistory().then(setHistory);
+    getFavorites().then(setFavorites);
   }, []);
 
   useEffect(() => {
@@ -124,6 +138,14 @@ export default function Command() {
     return Array.from(locs).sort();
   }, [resources]);
 
+  // Check if resource is favorite
+  const isFavorite = useCallback(
+    (resourceId: string) => {
+      return favorites.some((f) => f.id === resourceId);
+    },
+    [favorites],
+  );
+
   // Handle opening resource in portal with history
   const handleOpenInPortal = useCallback(async (resource: AzureResource) => {
     await addToHistory(resource);
@@ -149,6 +171,28 @@ export default function Command() {
         title: "履歴をクリアしました",
       });
     }
+  }, []);
+
+  // Handle adding to favorites
+  const handleAddToFavorites = useCallback(async (resource: AzureResource) => {
+    await addToFavorites(resource);
+    const updatedFavorites = await getFavorites();
+    setFavorites(updatedFavorites);
+    showToast({
+      style: Toast.Style.Success,
+      title: "お気に入りに追加しました",
+    });
+  }, []);
+
+  // Handle removing from favorites
+  const handleRemoveFromFavorites = useCallback(async (resourceId: string) => {
+    await removeFromFavorites(resourceId);
+    const updatedFavorites = await getFavorites();
+    setFavorites(updatedFavorites);
+    showToast({
+      style: Toast.Style.Success,
+      title: "お気に入りから削除しました",
+    });
   }, []);
 
   if (cliStatus && !cliStatus.installed) {
@@ -181,6 +225,53 @@ export default function Command() {
         isLoading={isLoading}
         searchBarPlaceholder="サブスクリプションを検索..."
       >
+        {favorites.length > 0 && (
+          <List.Section title="お気に入り">
+            {favorites.map((resource) => (
+              <List.Item
+                key={`favorite-${resource.id}`}
+                title={resource.name}
+                subtitle={resource.subscriptionName}
+                icon={{ source: Icon.Star, tintColor: Color.Yellow }}
+                accessories={[
+                  { tag: resource.location },
+                  { text: resource.type.split("/").pop() },
+                ]}
+                actions={
+                  <ActionPanel>
+                    <ActionPanel.Section>
+                      <Action.OpenInBrowser
+                        title="Azure Portal で開く"
+                        url={getPortalUrl(resource.id)}
+                        icon={Icon.Globe}
+                        onOpen={() => handleOpenInPortal(resource)}
+                      />
+                      <Action.CopyToClipboard
+                        title="リソース ID をコピー"
+                        content={resource.id}
+                        shortcut={{ modifiers: ["cmd"], key: "c" }}
+                      />
+                      <Action.CopyToClipboard
+                        title="リソース名をコピー"
+                        content={resource.name}
+                        shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+                      />
+                    </ActionPanel.Section>
+                    <ActionPanel.Section>
+                      <Action
+                        title="お気に入りから削除"
+                        icon={Icon.StarDisabled}
+                        style={Action.Style.Destructive}
+                        shortcut={{ modifiers: ["cmd"], key: "d" }}
+                        onAction={() => handleRemoveFromFavorites(resource.id)}
+                      />
+                    </ActionPanel.Section>
+                  </ActionPanel>
+                }
+              />
+            ))}
+          </List.Section>
+        )}
         {history.length > 0 && (
           <List.Section title="最近アクセスしたリソース">
             {history.slice(0, 5).map((item) => (
@@ -214,6 +305,14 @@ export default function Command() {
                       />
                     </ActionPanel.Section>
                     <ActionPanel.Section>
+                      {!isFavorite(item.resource.id) && (
+                        <Action
+                          title="お気に入りに追加"
+                          icon={Icon.Star}
+                          shortcut={{ modifiers: ["cmd"], key: "s" }}
+                          onAction={() => handleAddToFavorites(item.resource)}
+                        />
+                      )}
                       <Action
                         title="履歴をクリア"
                         icon={Icon.Trash}
@@ -265,11 +364,13 @@ export default function Command() {
 
   const filteredResources = resources.filter((res) => {
     const search = searchText.toLowerCase();
+    const tagString = formatTags(res.tags).toLowerCase();
     const matchesSearch =
       res.name.toLowerCase().includes(search) ||
       res.resourceGroup.toLowerCase().includes(search) ||
       res.type.toLowerCase().includes(search) ||
-      res.location.toLowerCase().includes(search);
+      res.location.toLowerCase().includes(search) ||
+      tagString.includes(search);
 
     const matchesType = typeFilter === ALL_FILTER || res.type === typeFilter;
     const matchesLocation =
@@ -325,48 +426,93 @@ export default function Command() {
       }
     >
       <List.Section title={`リソース (${filteredResources.length})`}>
-        {filteredResources.map((res) => (
-          <List.Item
-            key={res.id}
-            title={res.name}
-            subtitle={res.resourceGroup}
-            icon={Icon.Document}
-            accessories={[
-              { tag: res.location },
-              { text: res.type.split("/").pop() },
-            ]}
-            actions={
-              <ActionPanel>
-                <ActionPanel.Section>
-                  <Action.OpenInBrowser
-                    title="Azure Portal で開く"
-                    url={getPortalUrl(res.id)}
-                    icon={Icon.Globe}
-                    onOpen={() => handleOpenInPortal(res)}
-                  />
-                  <Action.CopyToClipboard
-                    title="リソース ID をコピー"
-                    content={res.id}
-                    shortcut={{ modifiers: ["cmd"], key: "c" }}
-                  />
-                  <Action.CopyToClipboard
-                    title="リソース名をコピー"
-                    content={res.name}
-                    shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
-                  />
-                </ActionPanel.Section>
-                <ActionPanel.Section>
-                  <Action
-                    title="サブスクリプション一覧に戻る"
-                    icon={Icon.ArrowLeft}
-                    shortcut={{ modifiers: ["cmd"], key: "b" }}
-                    onAction={() => setSelectedSubscription(null)}
-                  />
-                </ActionPanel.Section>
-              </ActionPanel>
-            }
-          />
-        ))}
+        {filteredResources.map((res) => {
+          const resourceIsFavorite = isFavorite(res.id);
+          const accessories: List.Item.Accessory[] = [
+            { tag: res.location },
+            {
+              tag: {
+                value: res.type.split("/").pop() || res.type,
+                color: Color.Purple,
+              },
+            },
+          ];
+
+          if (res.tags && Object.keys(res.tags).length > 0) {
+            accessories.push({
+              icon: { source: Icon.Tag, tintColor: Color.SecondaryText },
+              tooltip: formatTags(res.tags),
+            });
+          }
+
+          if (resourceIsFavorite) {
+            accessories.unshift({
+              icon: { source: Icon.Star, tintColor: Color.Yellow },
+            });
+          }
+
+          return (
+            <List.Item
+              key={res.id}
+              title={res.name}
+              subtitle={res.resourceGroup}
+              icon={Icon.Document}
+              accessories={accessories}
+              actions={
+                <ActionPanel>
+                  <ActionPanel.Section>
+                    <Action.OpenInBrowser
+                      title="Azure Portal で開く"
+                      url={getPortalUrl(res.id)}
+                      icon={Icon.Globe}
+                      onOpen={() => handleOpenInPortal(res)}
+                    />
+                    <Action.CopyToClipboard
+                      title="リソース ID をコピー"
+                      content={res.id}
+                      shortcut={{ modifiers: ["cmd"], key: "c" }}
+                    />
+                    <Action.CopyToClipboard
+                      title="リソース名をコピー"
+                      content={res.name}
+                      shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+                    />
+                    {res.tags && Object.keys(res.tags).length > 0 && (
+                      <Action.CopyToClipboard
+                        title="タグをコピー"
+                        content={JSON.stringify(res.tags, null, 2)}
+                        shortcut={{ modifiers: ["cmd", "opt"], key: "c" }}
+                      />
+                    )}
+                  </ActionPanel.Section>
+                  <ActionPanel.Section>
+                    {resourceIsFavorite ? (
+                      <Action
+                        title="お気に入りから削除"
+                        icon={Icon.StarDisabled}
+                        shortcut={{ modifiers: ["cmd"], key: "d" }}
+                        onAction={() => handleRemoveFromFavorites(res.id)}
+                      />
+                    ) : (
+                      <Action
+                        title="お気に入りに追加"
+                        icon={Icon.Star}
+                        shortcut={{ modifiers: ["cmd"], key: "s" }}
+                        onAction={() => handleAddToFavorites(res)}
+                      />
+                    )}
+                    <Action
+                      title="サブスクリプション一覧に戻る"
+                      icon={Icon.ArrowLeft}
+                      shortcut={{ modifiers: ["cmd"], key: "b" }}
+                      onAction={() => setSelectedSubscription(null)}
+                    />
+                  </ActionPanel.Section>
+                </ActionPanel>
+              }
+            />
+          );
+        })}
       </List.Section>
     </List>
   );
