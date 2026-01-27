@@ -14,7 +14,7 @@
     {
       "name": "search",
       "title": "Search Azure Resources",
-      "description": "Azure リソースを検索して Azure Portal で開く",
+      "description": "Search Azure resources and open in Azure Portal",
       "mode": "view"
     }
   ],

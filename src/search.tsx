@@ -67,8 +67,8 @@ export default function Command() {
     if (!status.installed) {
       showToast({
         style: Toast.Style.Failure,
-        title: "Azure CLI がインストールされていません",
-        message: "brew install azure-cli でインストールしてください",
+        title: "Azure CLI is not installed",
+        message: "Please install with: brew install azure-cli",
       });
       setIsLoading(false);
       return;
@@ -77,8 +77,8 @@ export default function Command() {
     if (!status.loggedIn) {
       showToast({
         style: Toast.Style.Failure,
-        title: "Azure CLI にログインしていません",
-        message: "az login を実行してください",
+        title: "Not logged in to Azure CLI",
+        message: "Please run: az login",
       });
       setIsLoading(false);
       return;
@@ -92,7 +92,7 @@ export default function Command() {
         error instanceof Error ? error.message : String(error);
       showToast({
         style: Toast.Style.Failure,
-        title: "サブスクリプションの取得に失敗しました",
+        title: "Failed to fetch subscriptions",
         message: errorMessage,
       });
     }
@@ -119,7 +119,7 @@ export default function Command() {
         error instanceof Error ? error.message : String(error);
       showToast({
         style: Toast.Style.Failure,
-        title: "リソースの取得に失敗しました",
+        title: "Failed to fetch resources",
         message: errorMessage,
       });
       setResources([]);
@@ -156,10 +156,10 @@ export default function Command() {
   // Handle clearing history
   const handleClearHistory = useCallback(async () => {
     const confirmed = await confirmAlert({
-      title: "履歴をクリア",
-      message: "すべての履歴を削除しますか？",
+      title: "Clear History",
+      message: "Are you sure you want to clear all history?",
       primaryAction: {
-        title: "削除",
+        title: "Clear",
         style: Alert.ActionStyle.Destructive,
       },
     });
@@ -168,7 +168,7 @@ export default function Command() {
       setHistory([]);
       showToast({
         style: Toast.Style.Success,
-        title: "履歴をクリアしました",
+        title: "History cleared",
       });
     }
   }, []);
@@ -180,7 +180,7 @@ export default function Command() {
     setFavorites(updatedFavorites);
     showToast({
       style: Toast.Style.Success,
-      title: "お気に入りに追加しました",
+      title: "Added to favorites",
     });
   }, []);
 
@@ -191,7 +191,7 @@ export default function Command() {
     setFavorites(updatedFavorites);
     showToast({
       style: Toast.Style.Success,
-      title: "お気に入りから削除しました",
+      title: "Removed from favorites",
     });
   }, []);
 
@@ -200,8 +200,8 @@ export default function Command() {
       <List>
         <List.EmptyView
           icon={Icon.ExclamationMark}
-          title="Azure CLI がインストールされていません"
-          description="brew install azure-cli でインストールしてください"
+          title="Azure CLI is not installed"
+          description="Please install with: brew install azure-cli"
         />
       </List>
     );
@@ -212,8 +212,8 @@ export default function Command() {
       <List>
         <List.EmptyView
           icon={Icon.Person}
-          title="Azure CLI にログインしていません"
-          description="ターミナルで az login を実行してください"
+          title="Not logged in to Azure CLI"
+          description="Please run 'az login' in your terminal"
         />
       </List>
     );
@@ -223,10 +223,10 @@ export default function Command() {
     return (
       <List
         isLoading={isLoading}
-        searchBarPlaceholder="サブスクリプションを検索..."
+        searchBarPlaceholder="Search subscriptions..."
       >
         {favorites.length > 0 && (
-          <List.Section title="お気に入り">
+          <List.Section title="Favorites">
             {favorites.map((resource) => (
               <List.Item
                 key={`favorite-${resource.id}`}
@@ -241,25 +241,25 @@ export default function Command() {
                   <ActionPanel>
                     <ActionPanel.Section>
                       <Action.OpenInBrowser
-                        title="Azure Portal で開く"
+                        title="Open in Azure Portal"
                         url={getPortalUrl(resource.id)}
                         icon={Icon.Globe}
                         onOpen={() => handleOpenInPortal(resource)}
                       />
                       <Action.CopyToClipboard
-                        title="リソース ID をコピー"
+                        title="Copy Resource ID"
                         content={resource.id}
                         shortcut={{ modifiers: ["cmd"], key: "c" }}
                       />
                       <Action.CopyToClipboard
-                        title="リソース名をコピー"
+                        title="Copy Resource Name"
                         content={resource.name}
                         shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
                       />
                     </ActionPanel.Section>
                     <ActionPanel.Section>
                       <Action
-                        title="お気に入りから削除"
+                        title="Remove from Favorites"
                         icon={Icon.StarDisabled}
                         style={Action.Style.Destructive}
                         shortcut={{ modifiers: ["cmd"], key: "s" }}
@@ -273,7 +273,7 @@ export default function Command() {
           </List.Section>
         )}
         {history.length > 0 && (
-          <List.Section title="最近アクセスしたリソース">
+          <List.Section title="Recently Accessed">
             {history.slice(0, 5).map((item) => (
               <List.Item
                 key={`history-${item.resource.id}`}
@@ -288,18 +288,18 @@ export default function Command() {
                   <ActionPanel>
                     <ActionPanel.Section>
                       <Action.OpenInBrowser
-                        title="Azure Portal で開く"
+                        title="Open in Azure Portal"
                         url={getPortalUrl(item.resource.id)}
                         icon={Icon.Globe}
                         onOpen={() => handleOpenInPortal(item.resource)}
                       />
                       <Action.CopyToClipboard
-                        title="リソース ID をコピー"
+                        title="Copy Resource ID"
                         content={item.resource.id}
                         shortcut={{ modifiers: ["cmd"], key: "c" }}
                       />
                       <Action.CopyToClipboard
-                        title="リソース名をコピー"
+                        title="Copy Resource Name"
                         content={item.resource.name}
                         shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
                       />
@@ -307,14 +307,14 @@ export default function Command() {
                     <ActionPanel.Section>
                       {!isFavorite(item.resource.id) && (
                         <Action
-                          title="お気に入りに追加"
+                          title="Add to Favorites"
                           icon={Icon.Star}
                           shortcut={{ modifiers: ["cmd"], key: "s" }}
                           onAction={() => handleAddToFavorites(item.resource)}
                         />
                       )}
                       <Action
-                        title="履歴をクリア"
+                        title="Clear History"
                         icon={Icon.Trash}
                         style={Action.Style.Destructive}
                         shortcut={{
@@ -330,7 +330,7 @@ export default function Command() {
             ))}
           </List.Section>
         )}
-        <List.Section title="サブスクリプション">
+        <List.Section title="Subscriptions">
           {subscriptions.map((sub) => (
             <List.Item
               key={sub.id}
@@ -342,14 +342,14 @@ export default function Command() {
               }}
               accessories={[
                 sub.isDefault
-                  ? { tag: { value: "デフォルト", color: Color.Blue } }
+                  ? { tag: { value: "Default", color: Color.Blue } }
                   : {},
                 { tag: sub.state },
               ]}
               actions={
                 <ActionPanel>
                   <Action
-                    title="サブスクリプションを選択"
+                    title="Select Subscription"
                     icon={Icon.ArrowRight}
                     onAction={() => setSelectedSubscription(sub)}
                   />
@@ -382,12 +382,12 @@ export default function Command() {
   return (
     <List
       isLoading={isLoading}
-      searchBarPlaceholder="リソースを検索..."
+      searchBarPlaceholder="Search resources..."
       onSearchTextChange={setSearchText}
       navigationTitle={selectedSubscription.name}
       searchBarAccessory={
         <List.Dropdown
-          tooltip="フィルター"
+          tooltip="Filter"
           onChange={(value) => {
             if (value.startsWith("type:")) {
               setTypeFilter(value.replace("type:", ""));
@@ -396,9 +396,9 @@ export default function Command() {
             }
           }}
         >
-          <List.Dropdown.Section title="リソースタイプ">
+          <List.Dropdown.Section title="Resource Type">
             <List.Dropdown.Item
-              title="すべてのタイプ"
+              title="All Types"
               value={`type:${ALL_FILTER}`}
             />
             {resourceTypes.map((type) => (
@@ -409,9 +409,9 @@ export default function Command() {
               />
             ))}
           </List.Dropdown.Section>
-          <List.Dropdown.Section title="ロケーション">
+          <List.Dropdown.Section title="Location">
             <List.Dropdown.Item
-              title="すべてのロケーション"
+              title="All Locations"
               value={`location:${ALL_FILTER}`}
             />
             {locations.map((loc) => (
@@ -425,7 +425,7 @@ export default function Command() {
         </List.Dropdown>
       }
     >
-      <List.Section title={`リソース (${filteredResources.length})`}>
+      <List.Section title={`Resources (${filteredResources.length})`}>
         {filteredResources.map((res) => {
           const resourceIsFavorite = isFavorite(res.id);
           const accessories: List.Item.Accessory[] = [
@@ -462,24 +462,24 @@ export default function Command() {
                 <ActionPanel>
                   <ActionPanel.Section>
                     <Action.OpenInBrowser
-                      title="Azure Portal で開く"
+                      title="Open in Azure Portal"
                       url={getPortalUrl(res.id)}
                       icon={Icon.Globe}
                       onOpen={() => handleOpenInPortal(res)}
                     />
                     <Action.CopyToClipboard
-                      title="リソース ID をコピー"
+                      title="Copy Resource ID"
                       content={res.id}
                       shortcut={{ modifiers: ["cmd"], key: "c" }}
                     />
                     <Action.CopyToClipboard
-                      title="リソース名をコピー"
+                      title="Copy Resource Name"
                       content={res.name}
                       shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
                     />
                     {res.tags && Object.keys(res.tags).length > 0 && (
                       <Action.CopyToClipboard
-                        title="タグをコピー"
+                        title="Copy Tags"
                         content={JSON.stringify(res.tags, null, 2)}
                         shortcut={{ modifiers: ["cmd", "opt"], key: "c" }}
                       />
@@ -488,21 +488,21 @@ export default function Command() {
                   <ActionPanel.Section>
                     {resourceIsFavorite ? (
                       <Action
-                        title="お気に入りから削除"
+                        title="Remove from Favorites"
                         icon={Icon.StarDisabled}
                         shortcut={{ modifiers: ["cmd"], key: "s" }}
                         onAction={() => handleRemoveFromFavorites(res.id)}
                       />
                     ) : (
                       <Action
-                        title="お気に入りに追加"
+                        title="Add to Favorites"
                         icon={Icon.Star}
                         shortcut={{ modifiers: ["cmd"], key: "s" }}
                         onAction={() => handleAddToFavorites(res)}
                       />
                     )}
                     <Action
-                      title="サブスクリプション一覧に戻る"
+                      title="Back to Subscriptions"
                       icon={Icon.ArrowLeft}
                       shortcut={{ modifiers: ["cmd"], key: "b" }}
                       onAction={() => setSelectedSubscription(null)}
