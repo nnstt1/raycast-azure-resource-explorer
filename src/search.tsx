@@ -148,10 +148,20 @@ export default function Command() {
 
       // Try Resource Graph first (faster), fallback to sequential fetching
       let all: AzureResource[] = [];
+      let useResourceGraph = true;
+
       try {
         all = queryResourceGraph(subscriptionsRef.current);
+        // If Resource Graph returned empty results, try fallback
+        if (all.length === 0 && subscriptionsRef.current.length > 0) {
+          useResourceGraph = false;
+        }
       } catch {
-        // Resource Graph not available or failed, fallback to getAllResources
+        useResourceGraph = false;
+      }
+
+      // Fallback to sequential fetching if Resource Graph failed or returned empty
+      if (!useResourceGraph) {
         try {
           all = getAllResources(subscriptionsRef.current);
         } catch (error) {

@@ -126,7 +126,6 @@ interface ResourceGraphResult {
   resourceGroup: string;
   location: string;
   subscriptionId: string;
-  subscriptionName: string;
   tags: Record<string, string> | null;
 }
 
@@ -142,20 +141,19 @@ export function queryResourceGraph(
   // Build subscription ID list for the query
   const subIds = subscriptions.map((s) => s.id);
 
-  // Kusto query to get all resources with subscription names
-  const query = `
-    Resources
-    | project id, name, type, resourceGroup, location, subscriptionId, tags
-    | join kind=leftouter (
-        ResourceContainers
-        | where type == 'microsoft.resources/subscriptions'
-        | project subscriptionId=subscriptionId, subscriptionName=name
-      ) on subscriptionId
-    | project id, name, type, resourceGroup, location, subscriptionId, subscriptionName, tags
-  `.trim();
+  if (subIds.length === 0) {
+    return [];
+  }
+
+  // Simple Kusto query without join (subscription names come from local map)
+  const query =
+    "Resources | project id, name, type, resourceGroup, location, subscriptionId, tags";
 
   const allResources: AzureResource[] = [];
   let skipToken: string | undefined;
+
+  // Create subscription name map
+  const subNameMap = new Map(subscriptions.map((s) => [s.id, s.name]));
 
   // Paginate through results (Resource Graph returns max 1000 per request)
   do {
@@ -163,15 +161,15 @@ export function queryResourceGraph(
       "graph",
       "query",
       "-q",
-      `"${query.replace(/"/g, '\\"')}"`,
+      `"${query}"`,
       "--subscriptions",
-      subIds.join(" "),
+      ...subIds,
       "--first",
       "1000",
     ];
 
     if (skipToken) {
-      args.push("--skip-token", `"${skipToken}"`);
+      args.push("--skip-token", skipToken);
     }
 
     try {
@@ -186,7 +184,7 @@ export function queryResourceGraph(
           resourceGroup: res.resourceGroup,
           location: res.location,
           subscriptionId: res.subscriptionId,
-          subscriptionName: res.subscriptionName || "",
+          subscriptionName: subNameMap.get(res.subscriptionId) || "",
           tags: res.tags || undefined,
         });
       }
