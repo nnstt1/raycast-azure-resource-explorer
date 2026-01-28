@@ -78,6 +78,23 @@ export function getResources(
   }));
 }
 
+export function getAllResources(
+  subscriptions: AzureSubscription[],
+): AzureResource[] {
+  const allResources: AzureResource[] = [];
+
+  for (const sub of subscriptions) {
+    try {
+      const resources = getResources(sub.id, sub.name);
+      allResources.push(...resources);
+    } catch {
+      // Skip subscriptions that fail to fetch resources
+    }
+  }
+
+  return allResources;
+}
+
 export function getPortalUrl(resourceId: string): string {
   return `https://portal.azure.com/#@/resource${resourceId}`;
 }

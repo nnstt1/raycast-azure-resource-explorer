@@ -9,12 +9,13 @@ import {
   confirmAlert,
   Alert,
 } from "@raycast/api";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { AzureSubscription, AzureResource } from "./types";
 import {
   checkAzureCli,
   getSubscriptions,
   getResources,
+  getAllResources,
   getPortalUrl,
 } from "./utils/azure";
 import {
@@ -47,12 +48,16 @@ export default function Command() {
   const [selectedSubscription, setSelectedSubscription] =
     useState<AzureSubscription | null>(null);
   const [resources, setResources] = useState<AzureResource[]>([]);
+  const [allResources, setAllResources] = useState<AzureResource[]>([]);
+  const [allResourcesLoaded, setAllResourcesLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingAllResources, setIsLoadingAllResources] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [favorites, setFavorites] = useState<AzureResource[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>(ALL_FILTER);
   const [locationFilter, setLocationFilter] = useState<string>(ALL_FILTER);
+  const subscriptionsRef = useRef<AzureSubscription[]>([]);
 
   // Load history and favorites on mount
   useEffect(() => {
@@ -87,6 +92,7 @@ export default function Command() {
     try {
       const subs = getSubscriptions();
       setSubscriptions(subs);
+      subscriptionsRef.current = subs;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -99,6 +105,7 @@ export default function Command() {
     setIsLoading(false);
   }, []);
 
+  // Load resources for selected subscription
   useEffect(() => {
     if (!selectedSubscription) {
       setResources([]);
@@ -126,6 +133,37 @@ export default function Command() {
     }
     setIsLoading(false);
   }, [selectedSubscription]);
+
+  // Load all resources when search text is entered (lazy loading)
+  useEffect(() => {
+    if (
+      searchText &&
+      !allResourcesLoaded &&
+      !isLoadingAllResources &&
+      !selectedSubscription
+    ) {
+      setIsLoadingAllResources(true);
+      try {
+        const all = getAllResources(subscriptionsRef.current);
+        setAllResources(all);
+        setAllResourcesLoaded(true);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        showToast({
+          style: Toast.Style.Failure,
+          title: "Failed to fetch resources",
+          message: errorMessage,
+        });
+      }
+      setIsLoadingAllResources(false);
+    }
+  }, [
+    searchText,
+    allResourcesLoaded,
+    isLoadingAllResources,
+    selectedSubscription,
+  ]);
 
   // Extract unique resource types and locations
   const resourceTypes = useMemo(() => {
@@ -219,13 +257,108 @@ export default function Command() {
     );
   }
 
+  // Subscription selection view (with global search)
   if (!selectedSubscription) {
+    // Filter resources from all subscriptions based on search text
+    const searchResults =
+      searchText && allResourcesLoaded
+        ? allResources.filter((res) => {
+            const search = searchText.toLowerCase();
+            const tagString = formatTags(res.tags).toLowerCase();
+            return (
+              res.name.toLowerCase().includes(search) ||
+              res.resourceGroup.toLowerCase().includes(search) ||
+              res.type.toLowerCase().includes(search) ||
+              res.location.toLowerCase().includes(search) ||
+              (res.subscriptionName?.toLowerCase().includes(search) ?? false) ||
+              tagString.includes(search)
+            );
+          })
+        : [];
+
     return (
       <List
-        isLoading={isLoading}
-        searchBarPlaceholder="Search subscriptions..."
+        isLoading={isLoading || isLoadingAllResources}
+        searchBarPlaceholder="Search subscriptions or resources..."
+        onSearchTextChange={setSearchText}
       >
-        {favorites.length > 0 && (
+        {searchText && searchResults.length > 0 && (
+          <List.Section title={`Search Results (${searchResults.length})`}>
+            {searchResults.slice(0, 50).map((res) => {
+              const resourceIsFavorite = isFavorite(res.id);
+              return (
+                <List.Item
+                  key={`search-${res.id}`}
+                  title={res.name}
+                  subtitle={res.resourceGroup}
+                  icon={
+                    resourceIsFavorite
+                      ? { source: Icon.Star, tintColor: Color.Yellow }
+                      : Icon.Document
+                  }
+                  accessories={[
+                    { text: res.subscriptionName },
+                    { tag: res.location },
+                    {
+                      tag: {
+                        value: res.type.split("/").pop() || res.type,
+                        color: Color.Purple,
+                      },
+                    },
+                  ]}
+                  actions={
+                    <ActionPanel>
+                      <ActionPanel.Section>
+                        <Action.OpenInBrowser
+                          title="Open in Azure Portal"
+                          url={getPortalUrl(res.id)}
+                          icon={Icon.Globe}
+                          onOpen={() => handleOpenInPortal(res)}
+                        />
+                        <Action.CopyToClipboard
+                          title="Copy Resource ID"
+                          content={res.id}
+                          shortcut={{ modifiers: ["cmd"], key: "c" }}
+                        />
+                        <Action.CopyToClipboard
+                          title="Copy Resource Name"
+                          content={res.name}
+                          shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+                        />
+                      </ActionPanel.Section>
+                      <ActionPanel.Section>
+                        {resourceIsFavorite ? (
+                          <Action
+                            title="Remove from Favorites"
+                            icon={Icon.StarDisabled}
+                            shortcut={{ modifiers: ["cmd"], key: "s" }}
+                            onAction={() => handleRemoveFromFavorites(res.id)}
+                          />
+                        ) : (
+                          <Action
+                            title="Add to Favorites"
+                            icon={Icon.Star}
+                            shortcut={{ modifiers: ["cmd"], key: "s" }}
+                            onAction={() => handleAddToFavorites(res)}
+                          />
+                        )}
+                      </ActionPanel.Section>
+                    </ActionPanel>
+                  }
+                />
+              );
+            })}
+          </List.Section>
+        )}
+        {searchText && isLoadingAllResources && (
+          <List.Section title="Searching...">
+            <List.Item
+              title="Loading resources from all subscriptions..."
+              icon={Icon.MagnifyingGlass}
+            />
+          </List.Section>
+        )}
+        {!searchText && favorites.length > 0 && (
           <List.Section title="Favorites">
             {favorites.map((resource) => (
               <List.Item
@@ -272,7 +405,7 @@ export default function Command() {
             ))}
           </List.Section>
         )}
-        {history.length > 0 && (
+        {!searchText && history.length > 0 && (
           <List.Section title="Recently Accessed">
             {history.slice(0, 5).map((item) => (
               <List.Item
@@ -331,37 +464,44 @@ export default function Command() {
           </List.Section>
         )}
         <List.Section title="Subscriptions">
-          {subscriptions.map((sub) => (
-            <List.Item
-              key={sub.id}
-              title={sub.name}
-              subtitle={sub.id}
-              icon={{
-                source: Icon.Key,
-                tintColor: sub.isDefault ? Color.Blue : Color.SecondaryText,
-              }}
-              accessories={[
-                sub.isDefault
-                  ? { tag: { value: "Default", color: Color.Blue } }
-                  : {},
-                { tag: sub.state },
-              ]}
-              actions={
-                <ActionPanel>
-                  <Action
-                    title="Select Subscription"
-                    icon={Icon.ArrowRight}
-                    onAction={() => setSelectedSubscription(sub)}
-                  />
-                </ActionPanel>
-              }
-            />
-          ))}
+          {subscriptions
+            .filter(
+              (sub) =>
+                !searchText ||
+                sub.name.toLowerCase().includes(searchText.toLowerCase()),
+            )
+            .map((sub) => (
+              <List.Item
+                key={sub.id}
+                title={sub.name}
+                subtitle={sub.id}
+                icon={{
+                  source: Icon.Key,
+                  tintColor: sub.isDefault ? Color.Blue : Color.SecondaryText,
+                }}
+                accessories={[
+                  sub.isDefault
+                    ? { tag: { value: "Default", color: Color.Blue } }
+                    : {},
+                  { tag: sub.state },
+                ]}
+                actions={
+                  <ActionPanel>
+                    <Action
+                      title="Select Subscription"
+                      icon={Icon.ArrowRight}
+                      onAction={() => setSelectedSubscription(sub)}
+                    />
+                  </ActionPanel>
+                }
+              />
+            ))}
         </List.Section>
       </List>
     );
   }
 
+  // Resource list view for selected subscription
   const filteredResources = resources.filter((res) => {
     const search = searchText.toLowerCase();
     const tagString = formatTags(res.tags).toLowerCase();
