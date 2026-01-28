@@ -24,3 +24,12 @@ export interface AzureResourceRaw {
   location: string;
   tags?: Record<string, string>;
 }
+
+export interface AzureResourceGroup {
+  id: string;
+  name: string;
+  location: string;
+  subscriptionId: string;
+  subscriptionName?: string;
+  tags?: Record<string, string>;
+}

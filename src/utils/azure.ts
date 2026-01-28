@@ -1,6 +1,11 @@
 import { execSync } from "child_process";
 import { getPreferenceValues } from "@raycast/api";
-import { AzureSubscription, AzureResource, AzureResourceRaw } from "../types";
+import {
+  AzureSubscription,
+  AzureResource,
+  AzureResourceRaw,
+  AzureResourceGroup,
+} from "../types";
 
 interface Preferences {
   azureCliPath?: string;
@@ -197,6 +202,77 @@ export function queryResourceGraph(
   } while (skipToken);
 
   return allResources;
+}
+
+interface ResourceGroupGraphResult {
+  id: string;
+  name: string;
+  location: string;
+  subscriptionId: string;
+  tags: Record<string, string> | null;
+}
+
+interface ResourceGroupGraphResponse {
+  data: ResourceGroupGraphResult[];
+  skip_token?: string;
+  total_records: number;
+}
+
+export function queryResourceGroupsGraph(
+  subscriptions: AzureSubscription[],
+): AzureResourceGroup[] {
+  const subIds = subscriptions.map((s) => s.id);
+
+  if (subIds.length === 0) {
+    return [];
+  }
+
+  const query =
+    "ResourceContainers | where type == 'microsoft.resources/subscriptions/resourcegroups' | project id, name, location, subscriptionId, tags";
+
+  const allResourceGroups: AzureResourceGroup[] = [];
+  let skipToken: string | undefined;
+
+  const subNameMap = new Map(subscriptions.map((s) => [s.id, s.name]));
+
+  do {
+    const args = [
+      "graph",
+      "query",
+      "-q",
+      `"${query}"`,
+      "--subscriptions",
+      ...subIds,
+      "--first",
+      "1000",
+    ];
+
+    if (skipToken) {
+      args.push("--skip-token", skipToken);
+    }
+
+    try {
+      const output = execAzCommand(args);
+      const response = JSON.parse(output) as ResourceGroupGraphResponse;
+
+      for (const rg of response.data) {
+        allResourceGroups.push({
+          id: rg.id,
+          name: rg.name,
+          location: rg.location,
+          subscriptionId: rg.subscriptionId,
+          subscriptionName: subNameMap.get(rg.subscriptionId) || "",
+          tags: rg.tags || undefined,
+        });
+      }
+
+      skipToken = response.skip_token;
+    } catch {
+      break;
+    }
+  } while (skipToken);
+
+  return allResourceGroups;
 }
 
 export function checkResourceGraphAvailable(): boolean {

@@ -326,6 +326,17 @@ export default function Command() {
 
   // Subscription selection view (with global search)
   if (!selectedSubscription) {
+    // Filter subscriptions based on search text
+    const subscriptionResults = searchText
+      ? sortedSubscriptions.filter((sub) => {
+          const search = searchText.toLowerCase();
+          return (
+            sub.name.toLowerCase().includes(search) ||
+            sub.id.toLowerCase().includes(search)
+          );
+        })
+      : [];
+
     // Filter resources from all subscriptions based on search text
     const searchResults =
       searchText && allResourcesLoaded
@@ -347,10 +358,52 @@ export default function Command() {
       <List
         isLoading={isLoading || isLoadingAllResources}
         searchBarPlaceholder="Search subscriptions or resources..."
+        searchText={searchText}
         onSearchTextChange={setSearchText}
       >
+        {searchText && subscriptionResults.length > 0 && (
+          <List.Section title={`Subscriptions (${subscriptionResults.length})`}>
+            {subscriptionResults.map((sub) => (
+              <List.Item
+                key={`sub-search-${sub.id}`}
+                title={sub.name}
+                subtitle={sub.id}
+                icon={{
+                  source: Icon.Key,
+                  tintColor: sub.isDefault ? Color.Blue : Color.SecondaryText,
+                }}
+                accessories={[
+                  sub.isDefault
+                    ? { tag: { value: "Default", color: Color.Blue } }
+                    : {},
+                  { tag: sub.state },
+                ]}
+                actions={
+                  <ActionPanel>
+                    <Action
+                      title="Select Subscription"
+                      icon={Icon.ArrowRight}
+                      onAction={() => {
+                        setSearchText("");
+                        setSelectedSubscription(sub);
+                      }}
+                    />
+                    {!sub.isDefault && (
+                      <Action
+                        title="Set as Default"
+                        icon={Icon.Star}
+                        shortcut={{ modifiers: ["cmd"], key: "d" }}
+                        onAction={() => handleSetDefaultSubscription(sub)}
+                      />
+                    )}
+                  </ActionPanel>
+                }
+              />
+            ))}
+          </List.Section>
+        )}
         {searchText && searchResults.length > 0 && (
-          <List.Section title={`Search Results (${searchResults.length})`}>
+          <List.Section title={`Resources (${searchResults.length})`}>
             {searchResults.slice(0, 50).map((res) => {
               const resourceIsFavorite = isFavorite(res.id);
               return (
@@ -530,14 +583,9 @@ export default function Command() {
             ))}
           </List.Section>
         )}
-        <List.Section title="Subscriptions">
-          {sortedSubscriptions
-            .filter(
-              (sub) =>
-                !searchText ||
-                sub.name.toLowerCase().includes(searchText.toLowerCase()),
-            )
-            .map((sub) => (
+        {!searchText && (
+          <List.Section title="Subscriptions">
+            {sortedSubscriptions.map((sub) => (
               <List.Item
                 key={sub.id}
                 title={sub.name}
@@ -571,7 +619,8 @@ export default function Command() {
                 }
               />
             ))}
-        </List.Section>
+          </List.Section>
+        )}
       </List>
     );
   }
@@ -598,6 +647,7 @@ export default function Command() {
     <List
       isLoading={isLoading}
       searchBarPlaceholder="Search resources..."
+      searchText={searchText}
       onSearchTextChange={setSearchText}
       navigationTitle={selectedSubscription.name}
       searchBarAccessory={
