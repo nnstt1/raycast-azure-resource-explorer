@@ -73,44 +73,48 @@ export default function Command() {
     getFavorites().then(setFavorites);
   }, []);
 
+  // Load CLI status and subscriptions with deferred execution for faster UI render
   useEffect(() => {
-    const status = checkAzureCli();
-    setCliStatus(status);
+    // Defer heavy CLI operations to allow UI to render first
+    setTimeout(() => {
+      const status = checkAzureCli();
+      setCliStatus(status);
 
-    if (!status.installed) {
-      showToast({
-        style: Toast.Style.Failure,
-        title: "Azure CLI is not installed",
-        message: "Please install with: brew install azure-cli",
-      });
+      if (!status.installed) {
+        showToast({
+          style: Toast.Style.Failure,
+          title: "Azure CLI is not installed",
+          message: "Please install with: brew install azure-cli",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      if (!status.loggedIn) {
+        showToast({
+          style: Toast.Style.Failure,
+          title: "Not logged in to Azure CLI",
+          message: "Please run: az login",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const subs = getSubscriptions();
+        setSubscriptions(subs);
+        subscriptionsRef.current = subs;
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        showToast({
+          style: Toast.Style.Failure,
+          title: "Failed to fetch subscriptions",
+          message: errorMessage,
+        });
+      }
       setIsLoading(false);
-      return;
-    }
-
-    if (!status.loggedIn) {
-      showToast({
-        style: Toast.Style.Failure,
-        title: "Not logged in to Azure CLI",
-        message: "Please run: az login",
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const subs = getSubscriptions();
-      setSubscriptions(subs);
-      subscriptionsRef.current = subs;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      showToast({
-        style: Toast.Style.Failure,
-        title: "Failed to fetch subscriptions",
-        message: errorMessage,
-      });
-    }
-    setIsLoading(false);
+    }, 50);
   }, []);
 
   // Load resources and resource groups for selected subscription
