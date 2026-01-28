@@ -133,7 +133,14 @@ export default function Command() {
     }
 
     setIsLoading(true);
-    setSelectedResourceGroup(null);
+    // Only clear selectedResourceGroup if it doesn't belong to the current subscription
+    // This allows navigating from global search directly to a resource group
+    setSelectedResourceGroup((currentRg) => {
+      if (currentRg && currentRg.subscriptionId !== selectedSubscription.id) {
+        return null;
+      }
+      return currentRg;
+    });
 
     try {
       const res = getResources(
@@ -473,10 +480,25 @@ export default function Command() {
                 actions={
                   <ActionPanel>
                     <ActionPanel.Section>
+                      <Action
+                        title="Show Resources"
+                        icon={Icon.ArrowRight}
+                        onAction={() => {
+                          const sub = subscriptions.find(
+                            (s) => s.id === rg.subscriptionId,
+                          );
+                          if (sub) {
+                            setSearchText("");
+                            setSelectedSubscription(sub);
+                            setSelectedResourceGroup(rg);
+                          }
+                        }}
+                      />
                       <Action.OpenInBrowser
                         title="Open in Azure Portal"
                         url={getPortalUrl(rg.id)}
                         icon={Icon.Globe}
+                        shortcut={{ modifiers: ["cmd"], key: "return" }}
                       />
                       <Action.CopyToClipboard
                         title="Copy Resource Group ID"
