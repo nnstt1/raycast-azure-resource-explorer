@@ -16,6 +16,7 @@ import {
   getSubscriptions,
   getResources,
   getAllResources,
+  queryResourceGraph,
   getPortalUrl,
 } from "./utils/azure";
 import {
@@ -143,19 +144,28 @@ export default function Command() {
       !selectedSubscription
     ) {
       setIsLoadingAllResources(true);
+
+      // Try Resource Graph first (faster), fallback to sequential fetching
+      let all: AzureResource[] = [];
       try {
-        const all = getAllResources(subscriptionsRef.current);
-        setAllResources(all);
-        setAllResourcesLoaded(true);
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        showToast({
-          style: Toast.Style.Failure,
-          title: "Failed to fetch resources",
-          message: errorMessage,
-        });
+        all = queryResourceGraph(subscriptionsRef.current);
+      } catch {
+        // Resource Graph not available or failed, fallback to getAllResources
+        try {
+          all = getAllResources(subscriptionsRef.current);
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          showToast({
+            style: Toast.Style.Failure,
+            title: "Failed to fetch resources",
+            message: errorMessage,
+          });
+        }
       }
+
+      setAllResources(all);
+      setAllResourcesLoaded(true);
       setIsLoadingAllResources(false);
     }
   }, [

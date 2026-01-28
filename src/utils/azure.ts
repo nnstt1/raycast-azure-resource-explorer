@@ -115,6 +115,101 @@ export function getAllResources(
   return allResources;
 }
 
+interface ResourceGraphResult {
+  id: string;
+  name: string;
+  type: string;
+  resourceGroup: string;
+  location: string;
+  subscriptionId: string;
+  subscriptionName: string;
+  tags: Record<string, string> | null;
+}
+
+interface ResourceGraphResponse {
+  data: ResourceGraphResult[];
+  skip_token?: string;
+  total_records: number;
+}
+
+export function queryResourceGraph(
+  subscriptions: AzureSubscription[],
+): AzureResource[] {
+  // Build subscription ID list for the query
+  const subIds = subscriptions.map((s) => s.id);
+
+  // Kusto query to get all resources with subscription names
+  const query = `
+    Resources
+    | project id, name, type, resourceGroup, location, subscriptionId, tags
+    | join kind=leftouter (
+        ResourceContainers
+        | where type == 'microsoft.resources/subscriptions'
+        | project subscriptionId=subscriptionId, subscriptionName=name
+      ) on subscriptionId
+    | project id, name, type, resourceGroup, location, subscriptionId, subscriptionName, tags
+  `.trim();
+
+  const allResources: AzureResource[] = [];
+  let skipToken: string | undefined;
+
+  // Paginate through results (Resource Graph returns max 1000 per request)
+  do {
+    const args = [
+      "graph",
+      "query",
+      "-q",
+      `"${query.replace(/"/g, '\\"')}"`,
+      "--subscriptions",
+      subIds.join(" "),
+      "--first",
+      "1000",
+    ];
+
+    if (skipToken) {
+      args.push("--skip-token", `"${skipToken}"`);
+    }
+
+    try {
+      const output = execAzCommand(args);
+      const response = JSON.parse(output) as ResourceGraphResponse;
+
+      for (const res of response.data) {
+        allResources.push({
+          id: res.id,
+          name: res.name,
+          type: res.type,
+          resourceGroup: res.resourceGroup,
+          location: res.location,
+          subscriptionId: res.subscriptionId,
+          subscriptionName: res.subscriptionName || "",
+          tags: res.tags || undefined,
+        });
+      }
+
+      skipToken = response.skip_token;
+    } catch {
+      // If Resource Graph fails, return empty (caller can fallback to getAllResources)
+      break;
+    }
+  } while (skipToken);
+
+  return allResources;
+}
+
+export function checkResourceGraphAvailable(): boolean {
+  try {
+    execSync('az graph query -q "Resources | limit 1" --first 1', {
+      encoding: "utf-8",
+      stdio: "pipe",
+      env: getEnv(),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getPortalUrl(resourceId: string): string {
   return `https://portal.azure.com/#@/resource${resourceId}`;
 }
