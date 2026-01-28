@@ -479,13 +479,13 @@ export default function Command() {
                         icon={Icon.Globe}
                       />
                       <Action.CopyToClipboard
-                        title="Copy Resource Group Name"
-                        content={rg.name}
+                        title="Copy Resource Group ID"
+                        content={rg.id}
                         shortcut={{ modifiers: ["cmd"], key: "c" }}
                       />
                       <Action.CopyToClipboard
-                        title="Copy Resource Group ID"
-                        content={rg.id}
+                        title="Copy Resource Group Name"
+                        content={rg.name}
                         shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
                       />
                     </ActionPanel.Section>
@@ -839,9 +839,14 @@ export default function Command() {
                       icon={Icon.Globe}
                     />
                     <Action.CopyToClipboard
+                      title="Copy Resource Group ID"
+                      content={rg.id}
+                      shortcut={{ modifiers: ["cmd"], key: "c" }}
+                    />
+                    <Action.CopyToClipboard
                       title="Copy Resource Group Name"
                       content={rg.name}
-                      shortcut={{ modifiers: ["cmd"], key: "c" }}
+                      shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
                     />
                   </ActionPanel.Section>
                   <ActionPanel.Section>
