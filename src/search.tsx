@@ -146,38 +146,41 @@ export default function Command() {
     ) {
       setIsLoadingAllResources(true);
 
-      // Try Resource Graph first (faster), fallback to sequential fetching
-      let all: AzureResource[] = [];
-      let useResourceGraph = true;
+      // Use setTimeout to allow React to render loading state before blocking operation
+      setTimeout(() => {
+        // Try Resource Graph first (faster), fallback to sequential fetching
+        let all: AzureResource[] = [];
+        let useResourceGraph = true;
 
-      try {
-        all = queryResourceGraph(subscriptionsRef.current);
-        // If Resource Graph returned empty results, try fallback
-        if (all.length === 0 && subscriptionsRef.current.length > 0) {
+        try {
+          all = queryResourceGraph(subscriptionsRef.current);
+          // If Resource Graph returned empty results, try fallback
+          if (all.length === 0 && subscriptionsRef.current.length > 0) {
+            useResourceGraph = false;
+          }
+        } catch {
           useResourceGraph = false;
         }
-      } catch {
-        useResourceGraph = false;
-      }
 
-      // Fallback to sequential fetching if Resource Graph failed or returned empty
-      if (!useResourceGraph) {
-        try {
-          all = getAllResources(subscriptionsRef.current);
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          showToast({
-            style: Toast.Style.Failure,
-            title: "Failed to fetch resources",
-            message: errorMessage,
-          });
+        // Fallback to sequential fetching if Resource Graph failed or returned empty
+        if (!useResourceGraph) {
+          try {
+            all = getAllResources(subscriptionsRef.current);
+          } catch (error) {
+            const errorMessage =
+              error instanceof Error ? error.message : String(error);
+            showToast({
+              style: Toast.Style.Failure,
+              title: "Failed to fetch resources",
+              message: errorMessage,
+            });
+          }
         }
-      }
 
-      setAllResources(all);
-      setAllResourcesLoaded(true);
-      setIsLoadingAllResources(false);
+        setAllResources(all);
+        setAllResourcesLoaded(true);
+        setIsLoadingAllResources(false);
+      }, 0);
     }
   }, [
     searchText,
