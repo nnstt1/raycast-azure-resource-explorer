@@ -11,6 +11,10 @@ A Raycast extension to search and explore Azure resources directly from your des
   - Browse resources within a specific subscription
   - Set default subscription directly from Raycast
   - Default subscription shown at the top
+- **Resource Group Browsing**:
+  - View resource groups within a subscription
+  - Filter resources by resource group
+  - Navigate hierarchically: Subscription → Resource Group → Resources
 - **Resource Type & Location Filters**: Narrow down results by resource type and Azure region
 - **Favorites**: Save frequently accessed resources for quick access
 - **History**: Automatically track recently accessed resources
@@ -49,7 +53,10 @@ Search for "Azure Resource Explorer" in the Raycast Store and install.
 3. Start typing to search:
    - Matching subscriptions appear in "Subscriptions" section
    - Matching resources appear in "Resources" section
-4. Or select a subscription to browse its resources with filters
+4. Or select a subscription to browse:
+   - **Resource Groups**: List of resource groups in the subscription
+   - **All Resources**: All resources in the subscription
+5. Select a resource group to view only resources within it
 
 ## Configuration
 
@@ -63,12 +70,12 @@ Open the extension preferences in Raycast to configure:
 
 | Shortcut | Action |
 |----------|--------|
-| `Enter` | Open in Azure Portal / Select Subscription |
-| `Cmd + C` | Copy Resource ID |
+| `Enter` | Open in Azure Portal / Select item |
+| `Cmd + C` | Copy Resource ID / Resource Group Name |
 | `Cmd + Shift + C` | Copy Resource Name |
 | `Cmd + S` | Add/Remove from Favorites |
 | `Cmd + D` | Set as Default Subscription |
-| `Cmd + B` | Back to Subscriptions |
+| `Cmd + B` | Back (to previous view) |
 
 ## Development
 
