@@ -81,7 +81,7 @@ npm run publish
 ## アーキテクチャ
 
 - **src/search.tsx**: メインのコマンドエントリポイント（検索 UI）
-- **src/utils/azure.ts**: Azure CLI / Resource Graph ラッパー（`getResourceGroups()`, `queryResourceGraph()` 等）
+- **src/utils/azure.ts**: Azure CLI / Resource Graph ラッパー（`getResourceGroups()`, `queryResourceGraph()`, `queryResourceGroupsGraph()` 等）
 - **src/utils/history.ts**: 履歴管理（LocalStorage 使用）
 - **src/utils/favorites.ts**: お気に入り管理（LocalStorage 使用）
 - **src/types.ts**: TypeScript 型定義
@@ -108,8 +108,11 @@ az resource list --subscription <subscription-id> --output json
 # リソースグループ一覧取得（特定サブスクリプション）
 az group list --subscription <subscription-id> --output json
 
-# Resource Graph クエリ（全サブスクリプション検索）
+# Resource Graph クエリ（全サブスクリプションのリソース検索）
 az graph query -q "Resources | project id, name, type, resourceGroup, location, subscriptionId, tags" --first 1000 --output json
+
+# Resource Graph クエリ（全サブスクリプションのリソースグループ検索）
+az graph query -q "ResourceContainers | where type == 'microsoft.resources/subscriptions/resourcegroups' | project id, name, location, subscriptionId, tags" --first 1000 --output json
 
 # デフォルトサブスクリプション設定
 az account set --subscription <subscription-id>
@@ -157,13 +160,14 @@ interface HistoryItem {
 ## UI フロー
 
 1. コマンド起動 → メイン画面（お気に入り、履歴、サブスクリプション一覧）
-2. 検索バーに入力 → サブスクリプションとリソースの検索結果を表示
-3. サブスクリプション選択 → そのサブスクリプション内のリソースグループ一覧 + リソース一覧
-4. リソースグループ選択 → そのリソースグループ内のリソースのみ表示
-5. リソースタイプ/ロケーションでフィルタリング可能
-6. リソース選択 → アクション実行（Portal で開く / ID コピー / 名前コピー / お気に入り）
-7. アクセスしたリソースは履歴に自動保存
-8. 「戻る」アクション (Cmd+B) で前の画面に戻る
+2. 検索バーに入力 → サブスクリプション、リソースグループ、リソースの検索結果を表示
+3. グローバル検索結果からリソースグループ選択 → そのリソースグループ内のリソースを表示
+4. サブスクリプション選択 → そのサブスクリプション内のリソースグループ一覧 + リソース一覧
+5. リソースグループ選択 → そのリソースグループ内のリソースのみ表示
+6. リソースタイプ/ロケーションでフィルタリング可能
+7. リソース選択 → アクション実行（Portal で開く / ID コピー / 名前コピー / お気に入り）
+8. アクセスしたリソースは履歴に自動保存
+9. 「戻る」アクション (Cmd+B) で前の画面に戻る
 
 ## 実装状況
 
@@ -194,9 +198,10 @@ interface HistoryItem {
 - [x] Azure Resource Graph による高速検索
 - [x] Azure CLI パスの設定機能
 - [x] デフォルトサブスクリプション設定機能
-- [x] グローバル検索（サブスクリプション/リソース分離表示）
+- [x] グローバル検索（サブスクリプション/リソースグループ/リソース分離表示）
 - [x] リソースグループブラウジング機能
 - [x] 起動時パフォーマンス改善（遅延読み込み）
+- [x] グローバル検索からリソースグループ内リソース直接表示
 
 ## 注意事項
 
