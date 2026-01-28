@@ -181,6 +181,37 @@ interface HistoryItem {
 - 大量のリソースがある場合は Azure Resource Graph を使用して高速化
 - Resource Graph が利用できない場合は従来の順次取得にフォールバック
 
+## 実装メモ
+
+### ローディングスピナー表示のための setTimeout 遅延
+
+`src/search.tsx` でリソース検索時に `setTimeout(..., 50)` を使用している理由：
+
+**問題**: JavaScript はシングルスレッドのため、以下の流れで問題が発生する：
+
+```javascript
+setIsLoadingAllResources(true);  // 状態更新をスケジュール
+queryResourceGraph();            // 同期的にブロック（数秒）
+setIsLoadingAllResources(false); // 状態更新をスケジュール
+```
+
+React の状態更新は非同期でバッチ処理されるため、`queryResourceGraph()` がメインスレッドをブロックしている間、React は画面を再描画できずスピナーが表示されない。
+
+**解決策**: `setTimeout(..., 50)` で遅延を入れることで：
+1. React が `isLoadingAllResources(true)` の状態更新を処理
+2. コンポーネントを再レンダリング
+3. スピナーを画面に描画
+
+するのに十分な時間を確保。
+
+**なぜ setTimeout(0) では不十分か**: `setTimeout(..., 0)` は「次のイベントループで実行」だが、React のレンダリングサイクルが完了する保証がなく、描画前に実行される可能性がある。
+
+**より良い代替案**（将来の改善候補）:
+- Web Worker で重い処理を別スレッド実行
+- `execSync` の代わりに `exec` + Promise で真の非同期処理
+
+ただし Azure CLI 実行は `execSync` を使用しているため、現状は setTimeout による遅延が現実的な解決策。
+
 ## 参考リンク
 
 - [Raycast API Documentation](https://developers.raycast.com/)

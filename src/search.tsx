@@ -180,7 +180,7 @@ export default function Command() {
         setAllResources(all);
         setAllResourcesLoaded(true);
         setIsLoadingAllResources(false);
-      }, 0);
+      }, 50);
     }
   }, [
     searchText,
