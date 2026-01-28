@@ -5,10 +5,16 @@ A Raycast extension to search and explore Azure resources directly from your des
 ## Features
 
 - **Global Resource Search**: Search across all subscriptions without selecting one first
-- **Subscription Filtering**: Browse resources within a specific subscription
+  - Uses Azure Resource Graph for fast queries
+  - Separates subscription and resource results
+- **Subscription Management**:
+  - Browse resources within a specific subscription
+  - Set default subscription directly from Raycast
+  - Default subscription shown at the top
 - **Resource Type & Location Filters**: Narrow down results by resource type and Azure region
 - **Favorites**: Save frequently accessed resources for quick access
 - **History**: Automatically track recently accessed resources
+- **Tag Support**: View and search by resource tags
 - **Quick Actions**:
   - Open resource in Azure Portal
   - Copy resource ID
@@ -39,9 +45,11 @@ Search for "Azure Resource Explorer" in the Raycast Store and install.
 2. On the main screen, you'll see:
    - **Favorites**: Your saved resources
    - **Recently Accessed**: History of opened resources
-   - **Subscriptions**: List of Azure subscriptions
-3. Start typing to search across all subscriptions
-4. Or select a subscription to browse its resources
+   - **Subscriptions**: List of Azure subscriptions (default first)
+3. Start typing to search:
+   - Matching subscriptions appear in "Subscriptions" section
+   - Matching resources appear in "Resources" section
+4. Or select a subscription to browse its resources with filters
 
 ## Configuration
 
@@ -55,10 +63,12 @@ Open the extension preferences in Raycast to configure:
 
 | Shortcut | Action |
 |----------|--------|
-| `Enter` | Open in Azure Portal |
+| `Enter` | Open in Azure Portal / Select Subscription |
 | `Cmd + C` | Copy Resource ID |
 | `Cmd + Shift + C` | Copy Resource Name |
 | `Cmd + S` | Add/Remove from Favorites |
+| `Cmd + D` | Set as Default Subscription |
+| `Cmd + B` | Back to Subscriptions |
 
 ## Development
 
