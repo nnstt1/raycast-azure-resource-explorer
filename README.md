@@ -43,6 +43,14 @@ Search for "Azure Resource Explorer" in the Raycast Store and install.
 3. Start typing to search across all subscriptions
 4. Or select a subscription to browse its resources
 
+## Configuration
+
+Open the extension preferences in Raycast to configure:
+
+| Preference | Description |
+|------------|-------------|
+| Azure CLI Path | Custom path to the Azure CLI executable (e.g., `/opt/homebrew/bin/az`). Leave empty to use default paths. |
+
 ## Keyboard Shortcuts
 
 | Shortcut | Action |

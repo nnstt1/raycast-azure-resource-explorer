@@ -18,6 +18,16 @@
       "mode": "view"
     }
   ],
+  "preferences": [
+    {
+      "name": "azureCliPath",
+      "type": "textfield",
+      "required": false,
+      "title": "Azure CLI Path",
+      "description": "Custom path to the Azure CLI executable (e.g., /opt/homebrew/bin/az). Leave empty to use default paths.",
+      "placeholder": "/opt/homebrew/bin/az"
+    }
+  ],
   "dependencies": {
     "@raycast/api": "^1.104.3",
     "@raycast/utils": "^1.17.0"

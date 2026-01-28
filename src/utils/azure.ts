@@ -1,36 +1,56 @@
 import { execSync } from "child_process";
+import { getPreferenceValues } from "@raycast/api";
 import { AzureSubscription, AzureResource, AzureResourceRaw } from "../types";
 
-const EXTRA_PATH = [
+interface Preferences {
+  azureCliPath?: string;
+}
+
+const DEFAULT_PATHS = [
   "/opt/homebrew/bin",
   "/usr/local/bin",
   "/usr/bin",
   "/bin",
-].join(":");
+];
 
-const ENV = {
-  ...process.env,
-  PATH: `${EXTRA_PATH}:${process.env.PATH || ""}`,
-};
+function getEnv(): NodeJS.ProcessEnv {
+  const preferences = getPreferenceValues<Preferences>();
+  const customPath = preferences.azureCliPath?.trim();
+
+  let extraPaths = [...DEFAULT_PATHS];
+  if (customPath) {
+    // Extract directory from the full path if user provided full path to az
+    const customDir = customPath.endsWith("/az")
+      ? customPath.slice(0, -3)
+      : customPath;
+    extraPaths = [customDir, ...extraPaths];
+  }
+
+  return {
+    ...process.env,
+    PATH: `${extraPaths.join(":")}:${process.env.PATH || ""}`,
+  };
+}
 
 function execAzCommand(args: string[]): string {
   const command = `az ${args.join(" ")} --output json`;
   return execSync(command, {
     encoding: "utf-8",
     maxBuffer: 50 * 1024 * 1024,
-    env: ENV,
+    env: getEnv(),
   });
 }
 
 export function checkAzureCli(): { installed: boolean; loggedIn: boolean } {
+  const env = getEnv();
   try {
-    execSync("az --version", { encoding: "utf-8", stdio: "pipe", env: ENV });
+    execSync("az --version", { encoding: "utf-8", stdio: "pipe", env });
   } catch {
     return { installed: false, loggedIn: false };
   }
 
   try {
-    execSync("az account show", { encoding: "utf-8", stdio: "pipe", env: ENV });
+    execSync("az account show", { encoding: "utf-8", stdio: "pipe", env });
     return { installed: true, loggedIn: true };
   } catch {
     return { installed: true, loggedIn: false };
