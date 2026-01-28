@@ -17,6 +17,7 @@ import {
   getResources,
   getAllResources,
   queryResourceGraph,
+  setDefaultSubscription,
   getPortalUrl,
 } from "./utils/azure";
 import {
@@ -242,6 +243,49 @@ export default function Command() {
       title: "Removed from favorites",
     });
   }, []);
+
+  // Handle setting default subscription
+  const handleSetDefaultSubscription = useCallback(
+    (subscription: AzureSubscription) => {
+      try {
+        setDefaultSubscription(subscription.id);
+        // Update subscriptions state to reflect the change
+        setSubscriptions((prev) =>
+          prev.map((sub) => ({
+            ...sub,
+            isDefault: sub.id === subscription.id,
+          })),
+        );
+        subscriptionsRef.current = subscriptionsRef.current.map((sub) => ({
+          ...sub,
+          isDefault: sub.id === subscription.id,
+        }));
+        showToast({
+          style: Toast.Style.Success,
+          title: "Default subscription changed",
+          message: subscription.name,
+        });
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        showToast({
+          style: Toast.Style.Failure,
+          title: "Failed to set default subscription",
+          message: errorMessage,
+        });
+      }
+    },
+    [],
+  );
+
+  // Sort subscriptions with default first
+  const sortedSubscriptions = useMemo(() => {
+    return [...subscriptions].sort((a, b) => {
+      if (a.isDefault && !b.isDefault) return -1;
+      if (!a.isDefault && b.isDefault) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [subscriptions]);
 
   if (cliStatus && !cliStatus.installed) {
     return (
@@ -474,7 +518,7 @@ export default function Command() {
           </List.Section>
         )}
         <List.Section title="Subscriptions">
-          {subscriptions
+          {sortedSubscriptions
             .filter(
               (sub) =>
                 !searchText ||
@@ -502,6 +546,14 @@ export default function Command() {
                       icon={Icon.ArrowRight}
                       onAction={() => setSelectedSubscription(sub)}
                     />
+                    {!sub.isDefault && (
+                      <Action
+                        title="Set as Default"
+                        icon={Icon.Star}
+                        shortcut={{ modifiers: ["cmd"], key: "d" }}
+                        onAction={() => handleSetDefaultSubscription(sub)}
+                      />
+                    )}
                   </ActionPanel>
                 }
               />

@@ -115,6 +115,10 @@ export function getAllResources(
   return allResources;
 }
 
+export function setDefaultSubscription(subscriptionId: string): void {
+  execAzCommand(["account", "set", "--subscription", subscriptionId]);
+}
+
 interface ResourceGraphResult {
   id: string;
   name: string;
