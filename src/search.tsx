@@ -10,11 +10,12 @@ import {
   Alert,
 } from "@raycast/api";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { AzureSubscription, AzureResource } from "./types";
+import { AzureSubscription, AzureResource, AzureResourceGroup } from "./types";
 import {
   checkAzureCli,
   getSubscriptions,
   getResources,
+  getResourceGroups,
   getAllResources,
   queryResourceGraph,
   setDefaultSubscription,
@@ -49,7 +50,12 @@ export default function Command() {
   const [subscriptions, setSubscriptions] = useState<AzureSubscription[]>([]);
   const [selectedSubscription, setSelectedSubscription] =
     useState<AzureSubscription | null>(null);
+  const [selectedResourceGroup, setSelectedResourceGroup] =
+    useState<AzureResourceGroup | null>(null);
   const [resources, setResources] = useState<AzureResource[]>([]);
+  const [resourceGroups, setResourceGroups] = useState<AzureResourceGroup[]>(
+    [],
+  );
   const [allResources, setAllResources] = useState<AzureResource[]>([]);
   const [allResourcesLoaded, setAllResourcesLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -107,22 +113,32 @@ export default function Command() {
     setIsLoading(false);
   }, []);
 
-  // Load resources for selected subscription
+  // Load resources and resource groups for selected subscription
   useEffect(() => {
     if (!selectedSubscription) {
       setResources([]);
+      setResourceGroups([]);
+      setSelectedResourceGroup(null);
       setTypeFilter(ALL_FILTER);
       setLocationFilter(ALL_FILTER);
       return;
     }
 
     setIsLoading(true);
+    setSelectedResourceGroup(null);
+
     try {
       const res = getResources(
         selectedSubscription.id,
         selectedSubscription.name,
       );
       setResources(res);
+
+      const rgs = getResourceGroups(
+        selectedSubscription.id,
+        selectedSubscription.name,
+      );
+      setResourceGroups(rgs);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -132,6 +148,7 @@ export default function Command() {
         message: errorMessage,
       });
       setResources([]);
+      setResourceGroups([]);
     }
     setIsLoading(false);
   }, [selectedSubscription]);
@@ -639,9 +656,30 @@ export default function Command() {
     const matchesType = typeFilter === ALL_FILTER || res.type === typeFilter;
     const matchesLocation =
       locationFilter === ALL_FILTER || res.location === locationFilter;
+    const matchesResourceGroup =
+      !selectedResourceGroup ||
+      res.resourceGroup.toLowerCase() ===
+        selectedResourceGroup.name.toLowerCase();
 
-    return matchesSearch && matchesType && matchesLocation;
+    return (
+      matchesSearch && matchesType && matchesLocation && matchesResourceGroup
+    );
   });
+
+  // Filter resource groups based on search text
+  const filteredResourceGroups = resourceGroups.filter((rg) => {
+    if (!searchText) return true;
+    const search = searchText.toLowerCase();
+    return (
+      rg.name.toLowerCase().includes(search) ||
+      rg.location.toLowerCase().includes(search)
+    );
+  });
+
+  // Navigation title
+  const navTitle = selectedResourceGroup
+    ? `${selectedSubscription.name} / ${selectedResourceGroup.name}`
+    : selectedSubscription.name;
 
   return (
     <List
@@ -649,7 +687,7 @@ export default function Command() {
       searchBarPlaceholder="Search resources..."
       searchText={searchText}
       onSearchTextChange={setSearchText}
-      navigationTitle={selectedSubscription.name}
+      navigationTitle={navTitle}
       searchBarAccessory={
         <List.Dropdown
           tooltip="Filter"
@@ -690,7 +728,67 @@ export default function Command() {
         </List.Dropdown>
       }
     >
-      <List.Section title={`Resources (${filteredResources.length})`}>
+      {!selectedResourceGroup && filteredResourceGroups.length > 0 && (
+        <List.Section
+          title={`Resource Groups (${filteredResourceGroups.length})`}
+        >
+          {filteredResourceGroups.map((rg) => (
+            <List.Item
+              key={rg.id}
+              title={rg.name}
+              subtitle={rg.location}
+              icon={{ source: Icon.Folder, tintColor: Color.Blue }}
+              accessories={[
+                {
+                  tag: {
+                    value: "Resource Group",
+                    color: Color.Blue,
+                  },
+                },
+              ]}
+              actions={
+                <ActionPanel>
+                  <ActionPanel.Section>
+                    <Action
+                      title="Show Resources"
+                      icon={Icon.ArrowRight}
+                      onAction={() => {
+                        setSearchText("");
+                        setSelectedResourceGroup(rg);
+                      }}
+                    />
+                    <Action.OpenInBrowser
+                      title="Open in Azure Portal"
+                      url={getPortalUrl(rg.id)}
+                      icon={Icon.Globe}
+                    />
+                    <Action.CopyToClipboard
+                      title="Copy Resource Group Name"
+                      content={rg.name}
+                      shortcut={{ modifiers: ["cmd"], key: "c" }}
+                    />
+                  </ActionPanel.Section>
+                  <ActionPanel.Section>
+                    <Action
+                      title="Back to Subscriptions"
+                      icon={Icon.ArrowLeft}
+                      shortcut={{ modifiers: ["cmd"], key: "b" }}
+                      onAction={() => setSelectedSubscription(null)}
+                    />
+                  </ActionPanel.Section>
+                </ActionPanel>
+              }
+            />
+          ))}
+        </List.Section>
+      )}
+      <List.Section
+        title={
+          selectedResourceGroup
+            ? `Resources in ${selectedResourceGroup.name} (${filteredResources.length})`
+            : `All Resources (${filteredResources.length})`
+        }
+      >
         {filteredResources.map((res) => {
           const resourceIsFavorite = isFavorite(res.id);
           const accessories: List.Item.Accessory[] = [
@@ -766,12 +864,22 @@ export default function Command() {
                         onAction={() => handleAddToFavorites(res)}
                       />
                     )}
-                    <Action
-                      title="Back to Subscriptions"
-                      icon={Icon.ArrowLeft}
-                      shortcut={{ modifiers: ["cmd"], key: "b" }}
-                      onAction={() => setSelectedSubscription(null)}
-                    />
+                    {selectedResourceGroup && (
+                      <Action
+                        title="Back to All Resources"
+                        icon={Icon.ArrowLeft}
+                        shortcut={{ modifiers: ["cmd"], key: "b" }}
+                        onAction={() => setSelectedResourceGroup(null)}
+                      />
+                    )}
+                    {!selectedResourceGroup && (
+                      <Action
+                        title="Back to Subscriptions"
+                        icon={Icon.ArrowLeft}
+                        shortcut={{ modifiers: ["cmd"], key: "b" }}
+                        onAction={() => setSelectedSubscription(null)}
+                      />
+                    )}
                   </ActionPanel.Section>
                 </ActionPanel>
               }

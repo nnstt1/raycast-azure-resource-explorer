@@ -103,6 +103,35 @@ export function getResources(
   }));
 }
 
+interface ResourceGroupRaw {
+  id: string;
+  name: string;
+  location: string;
+  tags?: Record<string, string>;
+}
+
+export function getResourceGroups(
+  subscriptionId: string,
+  subscriptionName: string,
+): AzureResourceGroup[] {
+  const output = execAzCommand([
+    "group",
+    "list",
+    "--subscription",
+    subscriptionId,
+  ]);
+  const groups = JSON.parse(output) as ResourceGroupRaw[];
+
+  return groups.map((rg) => ({
+    id: rg.id,
+    name: rg.name,
+    location: rg.location,
+    subscriptionId: subscriptionId,
+    subscriptionName: subscriptionName,
+    tags: rg.tags,
+  }));
+}
+
 export function getAllResources(
   subscriptions: AzureSubscription[],
 ): AzureResource[] {
