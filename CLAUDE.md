@@ -23,7 +23,12 @@ Azure CLI (`az` コマンド) および Azure Resource Graph を使用してリ�
    - デフォルトサブスクリプションを最上部に表示
    - サブスクリプションをデフォルトに設定可能
 
-3. **フィルタリング機能**
+3. **リソースグループブラウジング**
+   - サブスクリプション内のリソースグループ一覧を表示
+   - リソースグループを選択してリソースをフィルタリング
+   - 階層的ナビゲーション: サブスクリプション → リソースグループ → リソース
+
+4. **フィルタリング機能**
    - リソースタイプでフィルタリング（例: VirtualMachine, StorageAccount など）
    - リージョン（Location）での絞り込み
    - グローバル検索（サブスクリプション選択なしで全リソース検索）
@@ -76,7 +81,7 @@ npm run publish
 ## アーキテクチャ
 
 - **src/search.tsx**: メインのコマンドエントリポイント（検索 UI）
-- **src/utils/azure.ts**: Azure CLI / Resource Graph ラッパー
+- **src/utils/azure.ts**: Azure CLI / Resource Graph ラッパー（`getResourceGroups()`, `queryResourceGraph()` 等）
 - **src/utils/history.ts**: 履歴管理（LocalStorage 使用）
 - **src/utils/favorites.ts**: お気に入り管理（LocalStorage 使用）
 - **src/types.ts**: TypeScript 型定義
@@ -99,6 +104,9 @@ az account list --output json
 
 # リソース一覧取得（特定サブスクリプション）
 az resource list --subscription <subscription-id> --output json
+
+# リソースグループ一覧取得（特定サブスクリプション）
+az group list --subscription <subscription-id> --output json
 
 # Resource Graph クエリ（全サブスクリプション検索）
 az graph query -q "Resources | project id, name, type, resourceGroup, location, subscriptionId, tags" --first 1000 --output json
@@ -124,6 +132,19 @@ interface AzureResource {
 }
 ```
 
+### Azure ResourceGroup 型
+
+```typescript
+interface AzureResourceGroup {
+  id: string;              // リソースグループ ID
+  name: string;            // リソースグループ名
+  location: string;        // ロケーション（リージョン）
+  subscriptionId: string;  // サブスクリプション ID
+  subscriptionName?: string; // サブスクリプション名（表示用）
+  tags?: Record<string, string>; // タグ情報
+}
+```
+
 ### 履歴データ型
 
 ```typescript
@@ -137,10 +158,12 @@ interface HistoryItem {
 
 1. コマンド起動 → メイン画面（お気に入り、履歴、サブスクリプション一覧）
 2. 検索バーに入力 → サブスクリプションとリソースの検索結果を表示
-3. サブスクリプション選択 → そのサブスクリプション内のリソース一覧
-4. リソースタイプ/ロケーションでフィルタリング可能
-5. リソース選択 → アクション実行（Portal で開く / ID コピー / 名前コピー / お気に入り）
-6. アクセスしたリソースは履歴に自動保存
+3. サブスクリプション選択 → そのサブスクリプション内のリソースグループ一覧 + リソース一覧
+4. リソースグループ選択 → そのリソースグループ内のリソースのみ表示
+5. リソースタイプ/ロケーションでフィルタリング可能
+6. リソース選択 → アクション実行（Portal で開く / ID コピー / 名前コピー / お気に入り）
+7. アクセスしたリソースは履歴に自動保存
+8. 「戻る」アクション (Cmd+B) で前の画面に戻る
 
 ## 実装状況
 
@@ -172,6 +195,8 @@ interface HistoryItem {
 - [x] Azure CLI パスの設定機能
 - [x] デフォルトサブスクリプション設定機能
 - [x] グローバル検索（サブスクリプション/リソース分離表示）
+- [x] リソースグループブラウジング機能
+- [x] 起動時パフォーマンス改善（遅延読み込み）
 
 ## 注意事項
 
@@ -211,6 +236,26 @@ React の状態更新は非同期でバッチ処理されるため、`queryResou
 - `execSync` の代わりに `exec` + Promise で真の非同期処理
 
 ただし Azure CLI 実行は `execSync` を使用しているため、現状は setTimeout による遅延が現実的な解決策。
+
+### 起動時の遅延読み込み（Deferred Loading）
+
+拡張機能の起動時に即座に `checkAzureCli()` や `getSubscriptions()` を実行すると、Azure CLI コマンドが同期的にメインスレッドをブロックし、UI が表示されるまで数秒かかる問題があった。
+
+**解決策**: `useEffect` 内で `setTimeout(..., 50)` を使用して CLI 操作を遅延実行：
+
+```javascript
+useEffect(() => {
+  setTimeout(() => {
+    const status = checkAzureCli();
+    // ... サブスクリプション取得など
+  }, 50);
+}, []);
+```
+
+これにより：
+1. React が初期 UI（ローディング表示）を先にレンダリング
+2. 50ms 後に重い CLI 操作を開始
+3. ユーザーは即座に UI を見ることができ、「読み込み中」と認識できる
 
 ## 参考リンク
 
