@@ -18,6 +18,7 @@ import {
   getResourceGroups,
   getAllResources,
   queryResourceGraph,
+  queryResourceGroupsGraph,
   setDefaultSubscription,
   getPortalUrl,
 } from "./utils/azure";
@@ -57,6 +58,9 @@ export default function Command() {
     [],
   );
   const [allResources, setAllResources] = useState<AzureResource[]>([]);
+  const [allResourceGroups, setAllResourceGroups] = useState<
+    AzureResourceGroup[]
+  >([]);
   const [allResourcesLoaded, setAllResourcesLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingAllResources, setIsLoadingAllResources] = useState(false);
@@ -171,6 +175,7 @@ export default function Command() {
       setTimeout(() => {
         // Try Resource Graph first (faster), fallback to sequential fetching
         let all: AzureResource[] = [];
+        let allRgs: AzureResourceGroup[] = [];
         let useResourceGraph = true;
 
         try {
@@ -198,7 +203,15 @@ export default function Command() {
           }
         }
 
+        // Load resource groups via Resource Graph
+        try {
+          allRgs = queryResourceGroupsGraph(subscriptionsRef.current);
+        } catch {
+          // Resource groups loading failed, continue without them
+        }
+
         setAllResources(all);
+        setAllResourceGroups(allRgs);
         setAllResourcesLoaded(true);
         setIsLoadingAllResources(false);
       }, 50);
@@ -358,6 +371,21 @@ export default function Command() {
         })
       : [];
 
+    // Filter resource groups from all subscriptions based on search text
+    const resourceGroupResults =
+      searchText && allResourcesLoaded
+        ? allResourceGroups.filter((rg) => {
+            const search = searchText.toLowerCase();
+            const tagString = formatTags(rg.tags).toLowerCase();
+            return (
+              rg.name.toLowerCase().includes(search) ||
+              rg.location.toLowerCase().includes(search) ||
+              (rg.subscriptionName?.toLowerCase().includes(search) ?? false) ||
+              tagString.includes(search)
+            );
+          })
+        : [];
+
     // Filter resources from all subscriptions based on search text
     const searchResults =
       searchText && allResourcesLoaded
@@ -417,6 +445,50 @@ export default function Command() {
                         onAction={() => handleSetDefaultSubscription(sub)}
                       />
                     )}
+                  </ActionPanel>
+                }
+              />
+            ))}
+          </List.Section>
+        )}
+        {searchText && resourceGroupResults.length > 0 && (
+          <List.Section
+            title={`Resource Groups (${resourceGroupResults.length})`}
+          >
+            {resourceGroupResults.slice(0, 50).map((rg) => (
+              <List.Item
+                key={`rg-search-${rg.id}`}
+                title={rg.name}
+                subtitle={rg.subscriptionName}
+                icon={{ source: Icon.Folder, tintColor: Color.Blue }}
+                accessories={[
+                  { tag: rg.location },
+                  {
+                    tag: {
+                      value: "Resource Group",
+                      color: Color.Blue,
+                    },
+                  },
+                ]}
+                actions={
+                  <ActionPanel>
+                    <ActionPanel.Section>
+                      <Action.OpenInBrowser
+                        title="Open in Azure Portal"
+                        url={getPortalUrl(rg.id)}
+                        icon={Icon.Globe}
+                      />
+                      <Action.CopyToClipboard
+                        title="Copy Resource Group Name"
+                        content={rg.name}
+                        shortcut={{ modifiers: ["cmd"], key: "c" }}
+                      />
+                      <Action.CopyToClipboard
+                        title="Copy Resource Group ID"
+                        content={rg.id}
+                        shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+                      />
+                    </ActionPanel.Section>
                   </ActionPanel>
                 }
               />
